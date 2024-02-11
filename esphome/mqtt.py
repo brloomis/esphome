@@ -4,12 +4,17 @@ import logging
 import ssl
 import sys
 import time
+import tempfile
+import os
 import json
 
 import paho.mqtt.client as mqtt
 
 from esphome.const import (
     CONF_BROKER,
+    CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLIENT_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE_KEY,
     CONF_DISCOVERY_PREFIX,
     CONF_ESPHOME,
     CONF_LOG_TOPIC,
@@ -112,6 +117,51 @@ def prepare(
             tls_version=tls_version,
             ciphers=None,
         )
+    elif config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY):
+        ca_tmp_path = None
+        certfile_tmp_path = None
+        keyfile_tmp_path = None
+        with tempfile.NamedTemporaryFile(
+            mode="w", delete=False
+        ) as f_handle:
+            ca_tmp_path = f_handle.name
+            f_handle.write(config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY))
+
+        if config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE) and config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY):
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False
+            ) as f_handle:
+                certfile_tmp_path = f_handle.name
+                f_handle.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False
+            ) as f_handle:
+                keyfile_tmp_path = f_handle.name
+                f_handle.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+
+        client.tls_set(
+            ca_certs=ca_tmp_path,
+            certfile=certfile_tmp_path,
+            keyfile=keyfile_tmp_path,
+            cert_reqs=ssl.CERT_REQUIRED,
+            tls_version=ssl.PROTOCOL_TLS,
+            ciphers=None,
+        )
+        if ca_tmp_path is not None and os.path.exists(ca_tmp_path):
+            try:
+                os.remove(ca_tmp_path)
+            except OSError as err:
+                _LOGGER.error("CA file cleanup failed: %s", err)
+        if certfile_tmp_path is not None and os.path.exists(certfile_tmp_path):
+            try:
+                os.remove(certfile_tmp_path)
+            except OSError as err:
+                _LOGGER.error("Cert file cleanup failed: %s", err)
+        if keyfile_tmp_path is not None and os.path.exists(keyfile_tmp_path):
+            try:
+                os.remove(keyfile_tmp_path)
+            except OSError as err:
+                _LOGGER.error("Key file cleanup failed: %s", err)
 
     try:
         host = str(config[CONF_MQTT][CONF_BROKER])
