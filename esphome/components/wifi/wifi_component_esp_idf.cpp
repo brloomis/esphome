@@ -47,6 +47,7 @@ static esp_netif_t *s_ap_netif = nullptr;  // NOLINT(cppcoreguidelines-avoid-non
 static bool s_sta_started = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connected = false;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_got_ip = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_sta_got_ip6 = false;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_ap_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_not_found = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_connect_error = false;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -626,6 +627,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              get_auth_mode_str(it.new_mode));
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_CONNECTED) {
+    
     const auto &it = data->data.sta_connected;
     char buf[33];
     assert(it.ssid_len <= 32);
@@ -633,6 +635,10 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     buf[it.ssid_len] = '\0';
     ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
              format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
+#ifdef LWIP_IPV6_AUTOCONFIG
+    tcpip_adapter_create_ip6_linklocal(TCPIP_ADAPTER_IF_STA);
+#endif
+
     s_sta_connected = true;
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_DISCONNECTED) {
@@ -669,6 +675,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
     ESP_LOGV(TAG, "Event: Got IPv6 address=%s", format_ip6_addr(it.ip6_info.ip).c_str());
+    s_sta_got_ip6 = true;
 #endif /* ENABLE_IPV6 */
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
