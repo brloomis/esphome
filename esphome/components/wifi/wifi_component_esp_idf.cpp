@@ -634,7 +634,6 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              get_auth_mode_str(it.new_mode));
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_CONNECTED) {
-    
     const auto &it = data->data.sta_connected;
     char buf[33];
     assert(it.ssid_len <= 32);
